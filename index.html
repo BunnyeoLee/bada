@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>바다를 읽는 인공지능 · 디지털 교과서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E🌊%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+<script>window.APP_MODE = window.APP_MODE || "server";</script>
+<script src="config.js"></script>
+<script>window.APP_MODE = (window.BADA_CONFIG && window.BADA_CONFIG.apiUrl) ? "gas" : "demo";</script>
+</head>
+<body>
+<div id="app"><div class="boot">디지털 교과서를 불러오는 중…</div></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="modal" class="modal" hidden><div class="modal-card" role="dialog" aria-modal="true"><div id="modal-body"></div></div></div>
+<script src="vendor/chart.umd.min.js"></script>
+<script src="js/core.js"></script>
+<script src="js/local.js"></script>
+<script src="js/gas.js"></script>
+<script src="js/book.js"></script>
+<script src="js/lab.js"></script>
+<script src="js/student.js"></script>
+<script src="js/teacher.js"></script>
+<script>App.start();</script>
+</body>
+</html>
