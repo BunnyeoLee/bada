@@ -141,7 +141,9 @@ const Teacher = {
       <div class="row"><h1 class="title" style="margin:0">보고서 평가</h1><span class="spacer"></span>
         <button class="btn ai" id="bulk">✨ 미평가 보고서 모두 평가하기</button><button class="btn sm" id="xse">⬇ 세특 CSV</button></div>
       <p class="sub">[평가하기]를 누르면 인공지능이 데이터 분석 6단계 평가 기준으로 보고서를 채점하고 세부능력 및 특기사항 초안을 씁니다. 초안은 반드시 읽고 고친 뒤 확정하세요.</p>
-      ${d.aiReady ? "" : `<div class="card" style="border-color:#f3c7c3;background:#fff6f5;margin-bottom:14px">⚠ AI 평가가 설정되지 않았습니다. 서버의 <code>.env</code> 파일에 <code>ANTHROPIC_API_KEY</code>를 넣고 서버를 다시 시작하세요.</div>`}
+      ${d.aiReady ? "" : `<div class="card" style="border-color:#f3c7c3;background:#fff6f5;margin-bottom:14px">⚠ AI 평가가 설정되지 않았습니다. ${App.mode === "gas"
+        ? "구글 Apps Script의 Code.gs 맨 위 <code>ANTHROPIC_API_KEY</code>에 Claude API 키를 넣고 저장한 뒤 <b>[배포 → 배포 관리 → ✏️ 수정 → 버전: 새 버전 → 배포]</b>로 다시 배포하세요."
+        : "서버의 <code>.env</code> 파일에 <code>ANTHROPIC_API_KEY</code>를 넣고 서버를 다시 시작하세요."}</div>`}
       <div class="row" style="margin-bottom:12px"><select id="fp" style="max-width:300px"><option value="">모든 프로젝트</option>${App.order().map((k) => `<option value="${k}">${P[k].sec} ${esc(P[k].name)}</option>`).join("")}</select>
         <select id="fs" style="max-width:160px"><option value="">모든 상태</option><option value="no">미평가</option><option value="yes">평가 완료</option></select><span class="small muted" id="cnt"></span></div>
       <div class="twrap" id="rt"></div>`;
