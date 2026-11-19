@@ -67,7 +67,7 @@ const ERR_HELP = {
   AttributeError: "그 객체에는 없는 기능을 불렀습니다. 이름의 철자를 확인하세요.",
 };
 const Lab = {
-  py: null, loading: null, curPid: null, status: "idle", statusMsg: "파이썬 준비 전",
+  py: null, loading: null, curPid: null, mine: [], status: "idle", statusMsg: "파이썬 준비 전",
   setStatus(s, msg) { Lab.status = s; Lab.statusMsg = msg; const el = $("#pystatus"); if (el) { el.className = "pystatus " + s; el.textContent = msg; } },
   loadScript(src) { return new Promise((ok, no) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => no(new Error("스크립트를 불러오지 못했습니다: " + src)); document.head.appendChild(s); }); },
   async ensure() {
@@ -117,10 +117,12 @@ const Lab = {
       <div class="lab-head"><h1 class="title" style="margin:0">💻 ${esc(P.name)} <span class="muted" style="font-size:17px;font-weight:500">· ${esc(P.algo)}</span></h1></div>
       <div class="lab-head"><span id="pystatus" class="pystatus ${Lab.status}">${esc(Lab.statusMsg)}</span>
         <button class="btn primary" id="runall">▶ 처음부터 모두 실행</button><button class="btn" id="resetall">↺ 처음 코드로 되돌리기</button>
+        <label class="btn" title="직접 내려받은 실제 데이터(CSV)를 실습실에 올립니다">📁 내 데이터 올리기<input type="file" id="myup" accept=".csv,.txt" multiple hidden></label>
         <a class="btn" href="#book/${P.page}/s3">📖 교과서 보기</a><a class="btn" href="#data/${pid}">🗂 데이터 받기</a>
         ${App.user.role === "student" ? `<a class="btn" href="#quiz/${pid}">📝 형성평가</a>` : ""}</div>
       <div class="card" style="padding:12px 16px;font-size:14px">실습 데이터: ${P.data.map((d) => `<code>${esc(d)}</code>`).join(" ")} <span class="muted">(수업용 가상 데이터)</span><br>
-        <span class="muted">코드를 고쳐 실행해 보세요. 고친 코드는 이 기기에 자동 저장됩니다. Ctrl+Enter로 셀을 실행할 수 있습니다.</span></div>
+        <span class="muted">코드를 고쳐 실행해 보세요. 고친 코드는 이 기기에 자동 저장됩니다. Ctrl+Enter로 셀을 실행할 수 있습니다.</span>
+        <div id="mylist" class="small" style="margin-top:4px"></div></div>
       <div id="cells">${L.cells.map((c, i) => `
         <section class="cell" data-i="${i}">
           <div class="ch"><span class="st">${c.step}단계</span><b>${esc(c.title)}</b><span class="spacer"></span><span class="small muted">셀 ${i + 1}/${L.cells.length}</span></div>
@@ -145,6 +147,22 @@ const Lab = {
       $("[data-reset]", el).onclick = () => { ta.value = L.cells[i].code; LS.set(Lab.key(pid, i), ta.value); fit(); toast("원래 코드로 되돌렸습니다."); };
     });
     $("#runall").onclick = () => Lab.runUpTo(pid, L.cells.length - 1);
+    const showMine = () => { const el = $("#mylist"); if (el && Lab.mine.length) el.innerHTML = "내가 올린 데이터: " + Lab.mine.map((n) => `<code>mydata/${esc(n)}</code>`).join(" ") + ' <span class="muted">(코드의 파일 경로를 이 이름으로 바꾸어 쓰세요)</span>'; };
+    showMine();
+    $("#myup").onchange = async (e) => {
+      const fs = [...e.target.files]; e.target.value = ""; if (!fs.length) return;
+      try {
+        toast("파이썬을 준비하고 파일을 올리는 중…");
+        const py = await Lab.ensure(); try { py.FS.mkdir("/home/pyodide/mydata"); } catch (x) {}
+        for (const f of fs) {
+          if (f.size > 30e6) { toast(f.name + ": 30MB가 넘는 파일은 올릴 수 없습니다."); continue; }
+          const nm = f.name.replace(/[\\/]/g, "_");
+          py.FS.writeFile("/home/pyodide/mydata/" + nm, new Uint8Array(await f.arrayBuffer()));
+          if (!Lab.mine.includes(nm)) Lab.mine.push(nm);
+        }
+        showMine(); toast("올렸습니다. 코드에서 mydata/파일이름 으로 불러오세요. (이 창을 닫으면 다시 올려야 합니다)", 4500);
+      } catch (x) { toast("올리지 못했습니다: " + (x.message || x)); }
+    };
     $("#resetall").onclick = async () => { if (!(await confirmBox("이 프로젝트의 모든 셀을 원래 코드로 되돌릴까요?"))) return;
       L.cells.forEach((c, i) => LS.set(Lab.key(pid, i), c.code)); Lab.curPid = null; Lab.render(pid); };
     Lab.ensure().catch(() => {});

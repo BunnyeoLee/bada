@@ -139,8 +139,8 @@ const Auth = {
       <section class="auth-hero">
         <div class="pill" style="background:rgba(255,255,255,.18);color:#fff;align-self:flex-start;margin-bottom:14px">고등학교 데이터 과학 연계 · 디지털 교과서</div>
         <h1>바다를 읽는 인공지능<br>부산 해양 데이터 과학</h1>
-        <p>해수면, 이안류, 멸치, 해파리, 해양쓰레기, 태풍, 선박, 고등어, 갯녹음까지. 부산 바다의 문제 10가지를 데이터 분석 6단계로 직접 해결해 봅니다.</p>
-        <div class="chips"><span>교과서 4단원</span><span>프로젝트 10개</span><span>브라우저 파이썬 실습</span><span>형성평가</span><span>AI 보고서 평가</span></div>
+        <p>해수면, 이안류, 멸치, 해파리, 해양쓰레기, 태풍, 선박, 고등어, 갯녹음, 그리고 북항의 상어 부캉이까지. 부산 바다의 문제 11가지를 데이터 분석 6단계로 직접 해결해 봅니다.</p>
+        <div class="chips"><span>교과서 4단원</span><span>프로젝트 11개</span><span>브라우저 파이썬 실습</span><span>형성평가</span><span>AI 보고서 평가</span></div>
       </section>
       <section class="auth-panel"><div class="auth-box">
         <div class="tabs"><button data-r="student" class="${Auth.role === "student" ? "on" : ""}">학생</button><button data-r="teacher" class="${Auth.role === "teacher" ? "on" : ""}">교사</button></div>

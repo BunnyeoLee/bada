@@ -97,8 +97,8 @@ const Teacher = {
       <div class="grid g4" style="margin-top:16px">
         <div class="card stat"><div class="k">누적 학습 시간</div><div class="v" style="font-size:24px">${fmtDur(total)}</div></div>
         <div class="card stat"><div class="k">접속 횟수</div><div class="v">${d.sessions.length}<small>회</small></div></div>
-        <div class="card stat"><div class="k">응시한 형성평가</div><div class="v">${Object.keys(byP).length}<small>/10 · ${d.quiz.length}회</small></div></div>
-        <div class="card stat"><div class="k">제출 보고서</div><div class="v">${Object.keys(latest).length}<small>/10</small></div></div>
+        <div class="card stat"><div class="k">응시한 형성평가</div><div class="v">${Object.keys(byP).length}<small>/${order.length} · ${d.quiz.length}회</small></div></div>
+        <div class="card stat"><div class="k">제출 보고서</div><div class="v">${Object.keys(latest).length}<small>/${order.length}</small></div></div>
       </div>
       <div class="grid g2" style="margin-top:16px">
         <div class="card"><h3>최근 14일 학습 시간(분)</h3><div class="chartbox"><canvas id="sc1"></canvas></div></div>

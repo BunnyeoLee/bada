@@ -62,12 +62,12 @@ const Student = {
     const units = App.content.book.units.filter((u) => u.no);
     main.innerHTML = `
       <h1 class="title">${esc(App.user.name)} 님의 학습 공간</h1>
-      <p class="sub">10개의 부산 바다 프로젝트를 교과서 → 실습실 → 형성평가 → 보고서 순서로 해결해 봅시다. 로그인 ${fmtDT(App.loginAt)}</p>
+      <p class="sub">${App.order().length}개의 부산 바다 프로젝트를 교과서 → 실습실 → 형성평가 → 보고서 순서로 해결해 봅시다. 로그인 ${fmtDT(App.loginAt)}</p>
       <div class="grid g4">
         <div class="card stat"><div class="k">누적 학습 시간</div><div class="v">${fmtDur(prog.studyMs).replace(/(\d+)/g, "$1")}</div></div>
         <div class="card stat"><div class="k">접속 횟수</div><div class="v">${prog.sessions}<small>회</small></div></div>
-        <div class="card stat"><div class="k">형성평가 평균(최고 점수 기준)</div><div class="v">${avg ?? "–"}<small>${avg !== null ? `점 · ${qs.length}/10` : ""}</small></div></div>
-        <div class="card stat"><div class="k">제출한 보고서</div><div class="v">${Object.keys(prog.reports).length}<small>/10</small></div></div>
+        <div class="card stat"><div class="k">형성평가 평균(최고 점수 기준)</div><div class="v">${avg ?? "–"}<small>${avg !== null ? `점 · ${qs.length}/${App.order().length}` : ""}</small></div></div>
+        <div class="card stat"><div class="k">제출한 보고서</div><div class="v">${Object.keys(prog.reports).length}<small>/${App.order().length}</small></div></div>
       </div>
       <div class="card" style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <div style="flex:1;min-width:240px"><b>이어서 학습하기</b><div class="muted small">${lastP ? esc(lastP.unit.no + " " + lastP.title) : "처음이라면 '들어가며'부터 시작해 보세요."}</div></div>
@@ -75,15 +75,18 @@ const Student = {
       </div>
       ${units.slice(0, 3).map((u) => `
         <h2 style="margin:28px 0 12px;font-size:19px">${u.no}. ${esc(u.title)}</h2>
-        <div class="grid g3">${u.pages.filter((p) => p.kind === "project").map((p) => { const k = p.pid; return `
+        <div class="grid g3">${u.pages.filter((p) => p.kind === "project").map((p) => card(p.pid)).join("")}</div>`).join("")}
+      <h2 style="margin:28px 0 12px;font-size:19px">Ⅳ. 바다 데이터 과학 프로젝트</h2>
+      <div class="grid g3">${(units[3] ? units[3].pages.filter((p) => p.kind === "project") : []).map((p) => card(p.pid)).join("")}
+        <div class="card" style="display:flex;flex-direction:column;gap:10px"><b>우리 모둠 프로젝트</b><span class="small muted">우리 모둠만의 부산 바다 문제를 찾아 6단계로 해결합니다. 교과서의 <b>프로젝트 계획서 양식</b>은 웹에서 바로 작성·저장할 수 있습니다.</span>
+          <div class="row" style="margin-top:auto"><a class="btn sm" href="#book/u4-intro">단원 열기</a><a class="btn primary sm" href="#book/${(App.pages.find((p) => p.kind === "form") || {}).id}">계획서 작성</a></div></div>
+      </div>`;
+    function card(k) { return `
           <div class="card pcard">
             <div class="img" style="background-image:url(fig/${k.toLowerCase()}_story.png)"><span class="tag">${P[k].sec} · ${esc(P[k].algo)}</span></div>
             <div class="body"><b>${esc(P[k].name)}</b><span class="q">${esc(P[k].story)}</span><div class="prog">${Student.progressPills(k, prog)}</div></div>
             <div class="acts"><a class="btn sm" href="#book/${P[k].page}">📖 교과서</a><a class="btn sm" href="#lab/${k}">💻 실습</a><a class="btn sm" href="#quiz/${k}">📝 평가</a><a class="btn sm" href="#report/${k}">📤 보고서</a></div>
-          </div>`; }).join("")}</div>`).join("")}
-      <h2 style="margin:28px 0 12px;font-size:19px">Ⅳ. 바다 데이터 과학 프로젝트</h2>
-      <div class="card row"><div style="flex:1">우리 모둠만의 부산 바다 문제를 찾아 6단계로 해결하는 단원입니다. 교과서의 <b>프로젝트 계획서 양식</b>은 웹에서 바로 작성·저장할 수 있습니다.</div>
-        <a class="btn" href="#book/u4-intro">단원 열기</a><a class="btn primary" href="#book/${(App.pages.find((p) => p.kind === "form") || {}).id}">계획서 작성</a></div>`;
+          </div>`; }
   },
   quizIndex() {
     const P = App.content.labs.projects;
