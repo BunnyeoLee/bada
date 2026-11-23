@@ -25,7 +25,7 @@ label.f{display:block;font-size:13.5px;font-weight:500;color:var(--ink2);margin:
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .spacer{flex:1}
 .muted{color:var(--ink2)} .small{font-size:13px}
-.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;background:var(--sky);color:var(--navy2)}
+.pill{display:inline-block;white-space:nowrap;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600;background:var(--sky);color:var(--navy2)}
 .pill.ok{background:#e1f3e9;color:#1f7a4b} .pill.warn{background:#fdf0dc;color:#9a5b00} .pill.bad{background:#fde5e3;color:#b23a31} .pill.gray{background:#eef1f3;color:#6b7680}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#c4ccd2;margin-right:5px}.dot.on{background:#2fb36b;box-shadow:0 0 0 3px rgba(47,179,107,.18)}
 /* ---- layout ---- */

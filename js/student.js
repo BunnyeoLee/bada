@@ -138,10 +138,14 @@ const Student = {
           <h3>보고서 올리기</h3>
           <label class="f">프로젝트</label><select name="pid" required>${App.order().map((k) => `<option value="${k}" ${k === pid ? "selected" : ""}>${P[k].unitNo} ${P[k].sec} ${esc(P[k].name)} · ${esc(P[k].algo)}</option>`).join("")}</select>
           <label class="f">보고서 제목</label><input name="title" required maxlength="120" placeholder="예: 2050년 부산 해수면 예측과 저지대 대응 제안">
-          <label class="f">결과보고서 파일 (20MB 이하)</label>
-          <div class="drop" id="drop"><b>여기를 눌러 파일 선택</b> 또는 끌어다 놓기<div class="small muted" id="fname">PDF · HWPX · DOCX · PPTX · IPYNB · TXT · MD</div></div>
-          <input type="file" id="file" class="hidden" accept=".pdf,.hwpx,.docx,.pptx,.ipynb,.txt,.md">
-          <label class="f">산출물 첨부(선택, 최대 5개: 노트북, 그래프 이미지, 데이터 등)</label><input type="file" id="atts" multiple>
+          <label class="f" for="file">① 결과보고서 파일 <span class="pill">필수</span> <span class="muted">(20MB 이하)</span></label>
+          <div class="drop" id="drop">
+            <label for="file" class="btn primary" style="margin-bottom:8px">📄 보고서 파일 선택</label>
+            <div>또는 이 상자에 파일을 끌어다 놓으세요</div>
+            <div class="small muted" id="fname">PDF · HWPX · DOCX · PPTX · IPYNB · TXT · MD</div></div>
+          <input type="file" id="file" accept=".pdf,.hwpx,.docx,.pptx,.ipynb,.txt,.md" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
+          <details class="small" style="margin-top:12px" id="attbox"><summary style="cursor:pointer;color:var(--ink2)">② 추가 산출물 첨부 <span class="muted">(선택 · 노트북, 그래프 이미지, 데이터 등 최대 5개)</span></summary>
+            <input type="file" id="atts" multiple style="margin-top:8px"><div class="muted" id="attn" style="margin-top:4px"></div></details>
           <div id="pv" class="hidden"><label class="f">읽어 낸 보고서 내용 미리보기</label><div class="preview" id="pvt"></div><div class="small muted" id="pvn"></div></div>
           <div class="err" id="rerr"></div>
           <button class="btn primary" id="rsub" style="margin-top:8px">제출하기</button>
@@ -158,22 +162,38 @@ const Student = {
       try { text = (await Extract.text(f)).trim(); $("#pvt").textContent = text.slice(0, 3000) || "(읽어 낸 글자가 없습니다)"; $("#pvn").textContent = `${text.length.toLocaleString()}자를 읽었습니다.` + (text.length < 300 ? " 글자가 너무 적으면 AI 평가가 정확하지 않을 수 있습니다. 그림으로만 된 파일이라면 글로 된 설명을 덧붙여 주세요." : ""); }
       catch (e) { $("#pvt").textContent = ""; $("#rerr").textContent = e.message; main_file = null; }
     };
-    const drop = $("#drop"), fi = $("#file");
-    drop.onclick = () => fi.click(); fi.onchange = () => fi.files[0] && show(fi.files[0]);
+    const drop = $("#drop"), fi = $("#file"), at = $("#atts");
+    drop.onclick = (e) => { if (!e.target.closest("label")) fi.click(); };
+    fi.onchange = () => { const f = fi.files[0]; fi.value = ""; if (f) show(f); };   // 같은 파일을 다시 골라도 동작하도록 값 비움
+    const REPORT_EXT = /\.(pdf|hwpx|docx|pptx|ipynb|txt|md|hwp)$/i;
+    // 보고서 칸이 비어 있는데 첨부 칸에 보고서 파일을 넣은 경우, 그 파일을 보고서로 옮긴다
+    const promote = async () => {
+      const list = [...at.files], i = list.findIndex((f) => REPORT_EXT.test(f.name));
+      $("#attn").textContent = list.length ? `첨부 ${list.length}개: ` + list.map((f) => f.name).join(", ") : "";
+      if (main_file || i < 0) return false;
+      const f = list[i]; const dt = new DataTransfer(); list.forEach((x, j) => j !== i && dt.items.add(x)); at.files = dt.files;
+      $("#attn").textContent = at.files.length ? `첨부 ${at.files.length}개: ` + [...at.files].map((x) => x.name).join(", ") : "";
+      await show(f); toast(`'${f.name}'을(를) 결과보고서 파일로 넣었습니다.`); return true;
+    };
+    at.onchange = () => promote();
     drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); }; drop.ondragleave = () => drop.classList.remove("over");
     drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); e.dataTransfer.files[0] && show(e.dataTransfer.files[0]); };
     $("#rf").onsubmit = async (e) => {
-      e.preventDefault(); if (!main_file) return ($("#rerr").textContent = "보고서 파일을 선택하세요.");
+      e.preventDefault();
+      if (!main_file) await promote();
+      if (!main_file) return ($("#rerr").textContent = "① 결과보고서 파일을 선택하세요. (파란 [📄 보고서 파일 선택] 단추를 누르거나 상자에 끌어다 놓으세요)");
       const f = Object.fromEntries(new FormData(e.target)); $("#rsub").disabled = true; $("#rsub").innerHTML = '<span class="spin"></span> 올리는 중…';
       try {
         const atts = [];
         for (const a of [...$("#atts").files].slice(0, 5)) { if (a.size > 20e6) continue; let t = ""; try { t = await Extract.text(a); } catch (x) {} atts.push({ name: a.name, data: await Extract.b64(a), text: t.slice(0, 30000) }); }
         await API.post("/api/reports", { pid: f.pid, title: f.title, filename: main_file.name, mime: main_file.type || "", data: await Extract.b64(main_file), text, attachments: atts });
-        toast("보고서를 제출했습니다."); Student.report(f.pid);
-      } catch (x) { $("#rerr").textContent = x.message; $("#rsub").disabled = false; $("#rsub").textContent = "제출하기"; }
+        toast("보고서를 제출했습니다.");
+        if (main.isConnected) Student.report(f.pid);   // 올리는 동안 다른 화면으로 옮겼다면 화면을 되돌리지 않음
+      } catch (x) { if (!main.isConnected) return toast("보고서를 제출하지 못했습니다: " + x.message, 5000); $("#rerr").textContent = x.message; $("#rsub").disabled = false; $("#rsub").textContent = "제출하기"; }
     };
     try {
       const r = await API.get("/api/reports/mine");
+      if (!main.isConnected) return;
       $("#mine").innerHTML = r.reports.length ? `<div class="twrap"><table class="t"><tr><th>프로젝트</th><th>제목·파일</th><th>제출</th><th>상태</th></tr>${r.reports.map((x) => `
         <tr><td>${P[x.pid].sec} ${esc(P[x.pid].name)}</td><td><b>${esc(x.title || "(제목 없음)")}</b><div class="small muted">${esc(x.filename)} · ${fmtSize(x.size)}${x.attachments.length ? ` · 첨부 ${x.attachments.length}` : ""}</div></td>
         <td class="small">${fmtDT(x.at)}<div class="muted">${x.version}판</div></td><td>${x.replaced ? '<span class="pill gray">이전 판</span>' : '<span class="pill ok">제출됨</span>'}</td></tr>`).join("")}</table></div>` : '<div class="empty">아직 제출한 보고서가 없습니다.</div>';

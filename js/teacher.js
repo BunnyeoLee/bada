@@ -204,6 +204,7 @@ const Teacher = {
   },
   drawEval(e, rid) {
     const box = $("#evbox");
+    if (!box) return;   // 평가 중에 다른 화면으로 옮긴 경우(결과는 이미 저장됨)
     if (!e) {
       box.innerHTML = `<h3>AI 평가</h3><p class="muted">아직 평가하지 않았습니다. [평가하기]를 누르면 6개 영역(문제 정의, 데이터 수집, 전처리, 탐색적 분석, 모델링·평가, 공유·윤리·성찰)을 5점 척도로 채점하고, 잘한 점·보완할 점과 종합 평가 의견 초안을 작성합니다.</p>
         <button class="btn ai" id="evrun" style="padding:12px 20px;font-size:16px">✨ 평가하기</button><div class="err" id="everr"></div><div class="caution"><b>⚠ 유의 사항</b> 이 화면의 점수와 종합 평가 의견은 인공지능이 작성한 <b>참고용 초안</b>입니다. 학교생활기록부의 교과 세부능력 및 특기사항(세특)을 작성할 때에는 <b>참조 자료로만</b> 활용하고, 그대로 옮겨 적지 마세요. 내용이 학생의 실제 수행과 일치하는지, 사실과 다르거나 과장된 표현은 없는지, 기재 요령을 지켰는지는 <b>반드시 교사가 직접 검토하고 수정</b>해야 합니다.</div>`;
@@ -233,7 +234,7 @@ const Teacher = {
       if (e && !(await confirmBox("다시 평가할까요? 현재 결과와 확정한 평가 의견이 새 결과로 바뀝니다.", "다시 평가"))) return;
       const b = $("#evrun"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 인공지능이 보고서를 읽고 평가하는 중… (30초~1분)'; $("#everr").textContent = "";
       try { const ne = await Teacher.evaluate(rid); toast("평가를 마쳤습니다."); Teacher.drawEval(ne, rid); }
-      catch (x) { $("#everr").textContent = x.message; b.disabled = false; b.textContent = "✨ 평가하기"; }
+      catch (x) { if (!b.isConnected) return toast(x.message, 5000); $("#everr").textContent = x.message; b.disabled = false; b.textContent = "✨ 평가하기"; }
     };
   },
   async teacherFiles(el) {
