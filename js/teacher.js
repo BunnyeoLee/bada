@@ -1,4 +1,4 @@
-/* 교사 화면: 학습 모니터링 대시보드, 학생 상세, 보고서 평가(AI 세특) */
+/* 교사 화면: 학습 모니터링 대시보드, 학생 상세, 보고서 평가(AI 평가) */
 "use strict";
 const LOGOUT_LABEL = { manual: "직접 로그아웃", auto: "자동(활동 없음)", relogin: "다시 로그인함" };
 const heatColor = (v) => v == null ? "#eef1f3;color:#9aa5ad" : v >= 80 ? "#d6f0e1;color:#1f7a4b" : v >= 60 ? "#fdf0dc;color:#9a5b00" : "#fde5e3;color:#b23a31";
@@ -25,7 +25,7 @@ const Teacher = {
     const reps = S.reduce((a, s) => a + Object.keys(s.reports).length, 0), evald = S.reduce((a, s) => a + Object.values(s.reports).filter((r) => r.evaluated).length, 0);
     main.innerHTML = `
       <div class="row" style="margin-bottom:6px"><h1 class="title" style="margin:0">학습 모니터링 대시보드</h1><span class="spacer"></span>
-        <button class="btn sm" data-x="sessions">⬇ 접속 기록 CSV</button><button class="btn sm" data-x="scores">⬇ 형성평가 점수 CSV</button><button class="btn sm" data-x="seteuk">⬇ 세특 CSV</button></div>
+        <button class="btn sm" data-x="sessions">⬇ 접속 기록 CSV</button><button class="btn sm" data-x="scores">⬇ 형성평가 점수 CSV</button><button class="btn sm" data-x="seteuk">⬇ 보고서 평가 CSV</button></div>
       <p class="sub">로그인·로그아웃 시각으로 학습 시간을 계산합니다. ${d.idleMinutes}분 동안 활동이 없으면 마지막 활동 시각에 자동 로그아웃으로 기록합니다. (1분마다 새로 고침)</p>
       <div class="grid g4">
         <div class="card stat"><div class="k">가입 학생</div><div class="v">${S.length}<small>명</small></div></div>
@@ -139,8 +139,8 @@ const Teacher = {
     const P = App.content.labs.projects;
     main.innerHTML = `
       <div class="row"><h1 class="title" style="margin:0">보고서 평가</h1><span class="spacer"></span>
-        <button class="btn ai" id="bulk">✨ 미평가 보고서 모두 평가하기</button><button class="btn sm" id="xse">⬇ 세특 CSV</button></div>
-      <p class="sub">[평가하기]를 누르면 인공지능이 데이터 분석 6단계 평가 기준으로 보고서를 채점하고 세부능력 및 특기사항 초안을 씁니다. 초안은 반드시 읽고 고친 뒤 확정하세요.</p>
+        <button class="btn ai" id="bulk">✨ 미평가 보고서 모두 평가하기</button><button class="btn sm" id="xse">⬇ 보고서 평가 CSV</button></div>
+      <p class="sub">[평가하기]를 누르면 인공지능이 데이터 분석 6단계 평가 기준으로 보고서를 채점하고 종합 평가 의견 초안을 씁니다. 초안은 반드시 교사가 읽고 고친 뒤 확정하세요.</p>
       ${d.aiReady ? "" : `<div class="card" style="border-color:#f3c7c3;background:#fff6f5;margin-bottom:14px">⚠ AI 평가가 설정되지 않았습니다. ${App.mode === "gas"
         ? "구글 Apps Script의 Code.gs 맨 위 <code>ANTHROPIC_API_KEY</code>에 Claude API 키를 넣고 저장한 뒤 <b>[배포 → 배포 관리 → ✏️ 수정 → 버전: 새 버전 → 배포]</b>로 다시 배포하세요."
         : "서버의 <code>.env</code> 파일에 <code>ANTHROPIC_API_KEY</code>를 넣고 서버를 다시 시작하세요."}</div>`}
@@ -155,7 +155,7 @@ const Teacher = {
         <tr><td><b>${esc(r.student)}</b><div class="small muted">${esc(r.email)}</div></td><td class="small">${P[r.pid].sec} ${esc(P[r.pid].name)}</td>
         <td><a href="#t-report/${r.id}">${esc(r.title || "(제목 없음)")}</a><div class="small muted">${esc(r.filename)} · ${r.chars.toLocaleString()}자${r.attachments.length ? ` · 첨부 ${r.attachments.length}` : ""}</div></td>
         <td class="small">${fmtDT(r.at)}<div class="muted">${r.version}판</div></td>
-        <td data-ev="${r.id}">${r.eval ? `<span class="pill ok">${r.eval.total}점 · ${r.eval.grade}</span>${r.eval.final ? ' <span class="pill">세특 확정</span>' : ""}` : '<span class="pill gray">미평가</span>'}</td>
+        <td data-ev="${r.id}">${r.eval ? `<span class="pill ok">${r.eval.total}점 · ${r.eval.grade}</span>${r.eval.final ? ' <span class="pill">평가 확정</span>' : ""}` : '<span class="pill gray">미평가</span>'}</td>
         <td style="white-space:nowrap">${r.eval ? `<a class="btn sm" href="#t-report/${r.id}">결과 보기</a>` : `<button class="btn ai sm" data-go="${r.id}">평가하기</button>`}</td></tr>`).join("")}</table>`
         : '<div class="empty">조건에 맞는 보고서가 없습니다.</div>';
       $$("[data-go]").forEach((b) => (b.onclick = () => App.go("t-report/" + b.dataset.go + "/run")));
@@ -205,8 +205,8 @@ const Teacher = {
   drawEval(e, rid) {
     const box = $("#evbox");
     if (!e) {
-      box.innerHTML = `<h3>AI 평가</h3><p class="muted">아직 평가하지 않았습니다. [평가하기]를 누르면 6개 영역(문제 정의, 데이터 수집, 전처리, 탐색적 분석, 모델링·평가, 공유·윤리·성찰)을 5점 척도로 채점하고 세부능력 및 특기사항 초안을 작성합니다.</p>
-        <button class="btn ai" id="evrun" style="padding:12px 20px;font-size:16px">✨ 평가하기</button><div class="err" id="everr"></div>`;
+      box.innerHTML = `<h3>AI 평가</h3><p class="muted">아직 평가하지 않았습니다. [평가하기]를 누르면 6개 영역(문제 정의, 데이터 수집, 전처리, 탐색적 분석, 모델링·평가, 공유·윤리·성찰)을 5점 척도로 채점하고, 잘한 점·보완할 점과 종합 평가 의견 초안을 작성합니다.</p>
+        <button class="btn ai" id="evrun" style="padding:12px 20px;font-size:16px">✨ 평가하기</button><div class="err" id="everr"></div><div class="caution"><b>⚠ 유의 사항</b> 이 화면의 점수와 종합 평가 의견은 인공지능이 작성한 <b>참고용 초안</b>입니다. 학교생활기록부의 교과 세부능력 및 특기사항(세특)을 작성할 때에는 <b>참조 자료로만</b> 활용하고, 그대로 옮겨 적지 마세요. 내용이 학생의 실제 수행과 일치하는지, 사실과 다르거나 과장된 표현은 없는지, 기재 요령을 지켰는지는 <b>반드시 교사가 직접 검토하고 수정</b>해야 합니다.</div>`;
     } else {
       const text = e.finalSeteuk || e.seteuk;
       box.innerHTML = `
@@ -216,21 +216,21 @@ const Teacher = {
         ${e.summary ? `<label class="f">총평</label><div>${esc(e.summary)}</div>` : ""}
         <div class="grid g2" style="margin-top:6px;gap:10px"><div><label class="f">잘한 점</label><ul class="clean">${(e.strengths || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
           <div><label class="f">보완할 점</label><ul class="clean">${(e.improvements || []).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
-        <label class="f">세부능력 및 특기사항 ${e.finalSeteuk ? '<span class="pill ok">교사 확정본</span>' : '<span class="pill warn">AI 초안 · 검토 필요</span>'}</label>
+        <label class="f">종합 평가 의견 ${e.finalSeteuk ? '<span class="pill ok">교사 확정본</span>' : '<span class="pill warn">AI 초안 · 검토 필요</span>'}</label>
         <textarea class="seteuk" id="se">${esc(text)}</textarea>
         <div class="row"><span class="counter" id="secnt"></span><span class="spacer"></span><button class="btn sm" id="secopy">복사</button>${e.finalSeteuk ? '<button class="btn sm" id="seai">AI 초안으로 되돌리기</button>' : ""}<button class="btn primary sm" id="sesave">확정 저장</button></div>
         <label class="f">교사 메모(학생에게 보이지 않음)</label><textarea id="tn" rows="2">${esc(e.teacherNote || "")}</textarea>
-        <div class="row" style="margin-top:14px"><button class="btn ai sm" id="evrun">✨ 다시 평가하기</button><span class="small muted">다시 평가하면 확정한 세특이 AI 새 초안으로 바뀝니다.</span></div><div class="err" id="everr"></div>
-        <p class="small muted">AI 평가는 보조 자료입니다. 학교생활기록부 기재 전 교사가 내용의 사실 여부와 기재 요령 준수를 확인하세요.</p>`;
-      const se = $("#se"), cnt = () => { const n = [...se.value].length, b = neisBytes(se.value); $("#secnt").textContent = `${n}자 · ${b.toLocaleString()}바이트 (NEIS 기준 1,500바이트)`; $("#secnt").classList.toggle("over", b > 1500); };
+        <div class="row" style="margin-top:14px"><button class="btn ai sm" id="evrun">✨ 다시 평가하기</button><span class="small muted">다시 평가하면 확정한 평가 의견이 AI 새 초안으로 바뀝니다.</span></div><div class="err" id="everr"></div>
+        <div class="caution"><b>⚠ 유의 사항</b> 이 화면의 점수와 종합 평가 의견은 인공지능이 작성한 <b>참고용 초안</b>입니다. 학교생활기록부의 교과 세부능력 및 특기사항(세특)을 작성할 때에는 <b>참조 자료로만</b> 활용하고, 그대로 옮겨 적지 마세요. 내용이 학생의 실제 수행과 일치하는지, 사실과 다르거나 과장된 표현은 없는지, 기재 요령을 지켰는지는 <b>반드시 교사가 직접 검토하고 수정</b>해야 합니다.</div>`;
+      const se = $("#se"), cnt = () => { const n = [...se.value].length, b = neisBytes(se.value); $("#secnt").textContent = `${n}자 · ${b.toLocaleString()}바이트 (학교생활기록부 입력 기준 1,500바이트)`; $("#secnt").classList.toggle("over", b > 1500); };
       se.oninput = cnt; cnt();
-      $("#secopy").onclick = () => navigator.clipboard.writeText(se.value).then(() => toast("세특을 복사했습니다."), () => toast("복사하지 못했습니다."));
+      $("#secopy").onclick = () => navigator.clipboard.writeText(se.value).then(() => toast("평가 의견을 복사했습니다."), () => toast("복사하지 못했습니다."));
       $("#sesave").onclick = async () => { try { const r = await API.put(`/api/teacher/report/${rid}/eval`, { finalSeteuk: se.value, teacherNote: $("#tn").value }); toast("확정 저장했습니다."); Teacher.drawEval(r.eval, rid); } catch (x) { toast(x.message); } };
       $("#seai") && ($("#seai").onclick = async () => { const r = await API.put(`/api/teacher/report/${rid}/eval`, { finalSeteuk: "" }); r.eval.finalSeteuk = null; Teacher.drawEval(r.eval, rid); });
       $("#tn").onchange = () => API.put(`/api/teacher/report/${rid}/eval`, { teacherNote: $("#tn").value }).then(() => toast("메모를 저장했습니다.")).catch((x) => toast(x.message));
     }
     $("#evrun").onclick = async () => {
-      if (e && !(await confirmBox("다시 평가할까요? 현재 결과와 확정한 세특이 새 결과로 바뀝니다.", "다시 평가"))) return;
+      if (e && !(await confirmBox("다시 평가할까요? 현재 결과와 확정한 평가 의견이 새 결과로 바뀝니다.", "다시 평가"))) return;
       const b = $("#evrun"); b.disabled = true; b.innerHTML = '<span class="spin"></span> 인공지능이 보고서를 읽고 평가하는 중… (30초~1분)'; $("#everr").textContent = "";
       try { const ne = await Teacher.evaluate(rid); toast("평가를 마쳤습니다."); Teacher.drawEval(ne, rid); }
       catch (x) { $("#everr").textContent = x.message; b.disabled = false; b.textContent = "✨ 평가하기"; }

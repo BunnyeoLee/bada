@@ -230,7 +230,7 @@ ${(r.attachments || []).filter((x) => x.text).map((x) => `<attachment name="${x.
     if (kind === "sessions") { name = "접속기록.csv"; rows = [["이름", "메일", "로그인", "로그아웃", "학습시간(분)", "로그아웃 방식"]];
       Object.values(S.sessions).sort((a, b) => a.loginAt - b.loginAt).forEach((s) => { const u = S.users[s.userId]; if (u?.role === "student") rows.push([u.name, u.email, fmtDT(s.loginAt), s.logoutAt ? fmtDT(s.logoutAt) : "(접속 중)", Math.round(Local.dur(s) / 60000), LOGOUT_LABEL[s.logoutType] || "접속 중"]); }); }
     else if (kind === "scores") { name = "형성평가_점수.csv"; rows = [["이름", "메일", ...order.map((k) => `${P[k].sec} ${P[k].name}(최고)`)]]; st.forEach((u) => { const q = Local.qsum(u.id); rows.push([u.name, u.email, ...order.map((k) => q[k]?.best ?? "")]); }); }
-    else { name = "세부능력특기사항.csv"; rows = [["이름", "메일", "프로젝트", "총점", "등급", "세특(확정본 우선)"]];
+    else { name = "보고서평가_결과.csv"; rows = [["이름", "메일", "프로젝트", "총점", "등급", "종합 평가 의견(교사 확정본 우선)"]];
       Object.values(S.reports).forEach((r) => { const e = S.evals[r.id], u = S.users[r.userId]; if (e && u && !r.replaced) rows.push([u.name, u.email, `${P[r.pid].sec} ${P[r.pid].name}`, e.total, e.grade, e.finalSeteuk || e.seteuk]); }); }
     Local.saveFile(name, "\ufeff" + rows.map((r) => r.map(c).join(",")).join("\r\n"));
   },
