@@ -28,8 +28,8 @@ const App = {
   mode: window.APP_MODE, artifact: window.APP_MODE === "demo" && !!window.claude, user: null, loginAt: null, content: {}, idleMinutes: 20,
   async start() {
     try {
-      const [book, labs, quiz] = await Promise.all(["book", "labs", "quiz"].map((n) => fetch(`content/${n}.json`).then((r) => r.json())));
-      Object.assign(App.content, { book, labs, quiz });
+      const [book, labs, quiz, insight] = await Promise.all(["book", "labs", "quiz", "insight"].map((n) => fetch(`content/${n}.json`).then((r) => r.json())));
+      Object.assign(App.content, { book, labs, quiz, insight });
       App.pages = []; book.units.forEach((u) => u.pages.forEach((p) => App.pages.push({ ...p, unit: u })));
       if (App.mode === "demo") await Local.init();
       try { const me = await API.get("/api/me"); App.user = me.user; App.loginAt = me.loginAt; App.idleMinutes = me.idleMinutes; App.aiReady = me.aiReady; } catch (e) { App.user = null; }

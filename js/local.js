@@ -144,10 +144,12 @@ const Local = {
       if (method === "DELETE") { for (const [k, s] of Object.entries(S.sessions)) if (s.userId === u.id) delete S.sessions[k]; S.quiz = S.quiz.filter((q) => q.userId !== u.id);
         for (const [k, r] of Object.entries(S.reports)) if (r.userId === u.id) { delete S.reports[k]; delete S.evals[k]; } delete S.activity[u.id]; delete S.plans[u.id]; delete S.users[u.id]; Local.save(); return { ok: true }; }
       return { user: Local.pub(u), sessions: Local.sessOf(u.id).map((s) => ({ loginAt: s.loginAt, logoutAt: s.logoutAt, lastSeen: s.lastSeen, logoutType: s.logoutType, durationMs: Local.dur(s), open: !s.logoutAt })),
-        quiz: S.quiz.filter((q) => q.userId === u.id), reports: Object.values(S.reports).filter((r) => r.userId === u.id).sort((p, q) => q.at - p.at).map((r) => ({ ...Local.meta(r, true), replaced: !!r.replaced })),
+        quiz: S.quiz.filter((q) => q.userId === u.id).map((q) => ({ ...q, correct: ((Local.quizKey || {})[q.pid] || []).map((k, i) => (q.answers || [])[i] === k.answer) })),
+        reports: Object.values(S.reports).filter((r) => r.userId === u.id).sort((p, q) => q.at - p.at).map((r) => ({ ...Local.meta(r, true), replaced: !!r.replaced, evalScores: S.evals[r.id]?.scores?.map((x) => ({ area: x.area, score: x.score })) || null })),
         activity: S.activity[u.id] || { pages: {}, labs: {} }, plan: S.plans[u.id] || null, daily: Local.daily(u.id) };
     }
     if (method === "GET" && path === "/api/teacher/reports") { need("teacher"); return { aiReady: true, reports: Object.values(S.reports).filter((r) => !r.replaced).sort((p, q) => q.at - p.at).map((r) => ({ ...Local.meta(r, true), student: S.users[r.userId]?.name || "(삭제됨)", email: S.users[r.userId]?.email || "" })) }; }
+    if (method === "POST" && path === "/api/teacher/insight") { need("teacher"); Local.err(503, "미리보기 모드에서는 AI 진단을 쓸 수 없습니다. 학습 기록 서버(구글 Apps Script)를 연결하면 사용할 수 있습니다."); }
     if (method === "PUT" && (x = m(/^\/api\/teacher\/report\/(\w+)\/feedback$/))) {
       need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다.");
       const t = String(b.text || "").trim().slice(0, 2000); r.feedback = t ? { text: t, at: now } : null; Local.save(); return { feedback: r.feedback };

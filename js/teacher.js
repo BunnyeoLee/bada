@@ -10,7 +10,7 @@ if (window.Chart) Chart.defaults.font.family = '"Noto Sans KR", system-ui, sans-
 
 const Teacher = {
   routes: {
-    "t-dash": () => Teacher.dash(), "t-student": (p) => Teacher.student(p[1]), "t-reports": () => Teacher.reports(), "t-report": (p) => Teacher.report(p[1]),
+    "t-dash": () => Teacher.dash(), "t-student": (p) => Teacher.student(p[1], p[2]), "t-reports": () => Teacher.reports(), "t-report": (p) => Teacher.report(p[1]),
     "t-guide": (p) => Book.renderGuide(p[1]),
   },
   sort: { k: "name", dir: 1 }, filter: "", refresh: null,
@@ -81,8 +81,9 @@ const Teacher = {
     if (App.mode === "gas") { try { const r = await API.get("/api/teacher/export/" + kind); Files.saveBlob(new Blob([r.csv], { type: "text/csv" }), r.name); } catch (e) { toast(e.message); } return; }
     Files.download("/api/teacher/export/" + kind);
   },
-  async student(uid) {
+  async student(uid, tab) {
     clearCharts(); clearInterval(Teacher.refresh);
+    tab = ["weak", "next"].includes(tab) ? tab : "status";
     const main = App.shell("t-dash", `<div class="empty"><span class="spin"></span></div>`, { wide: true });
     let d; try { d = await API.get("/api/teacher/student/" + uid); } catch (e) { main.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
     if (!main.isConnected) return;
@@ -94,6 +95,9 @@ const Teacher = {
       <div class="crumb"><a href="#t-dash">학습 모니터링</a> › 학생 상세</div>
       <div class="row"><h1 class="title" style="margin:0">${esc(u.name)}</h1><span class="muted">${esc(u.email)} · ${esc(u.phone.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3"))} · 가입 ${fmtDT(u.createdAt)}</span>
         <span class="spacer"></span><button class="btn danger sm" id="delst">학생 계정·기록 삭제</button></div>
+      <div class="tabbar">${[["status", "📊 학습 현황"], ["weak", "🔎 취약점 분석"], ["next", "🧭 다음 교육과정 추천"]].map(([k, v]) => `<a href="#t-student/${uid}/${k}" class="${tab === k ? "on" : ""}">${v}</a>`).join("")}</div>
+      <div id="insbox"></div>
+      <div id="statusbox" ${tab === "status" ? "" : 'style="display:none"'}>
       <div class="grid g4" style="margin-top:16px">
         <div class="card stat"><div class="k">누적 학습 시간</div><div class="v" style="font-size:24px">${fmtDur(total)}</div></div>
         <div class="card stat"><div class="k">접속 횟수</div><div class="v">${d.sessions.length}<small>회</small></div></div>
@@ -116,7 +120,10 @@ const Teacher = {
           <td class="small">${r ? `<a href="#t-report/${r.id}">${esc(r.title || r.filename)}</a><div class="muted">${fmtDT(r.at)} · ${r.version}판</div>` : "–"}</td>
           <td>${r ? (r.eval ? `<a class="pill ok" href="#t-report/${r.id}">${r.eval.total}점 ${r.eval.grade}</a>` : `<a class="btn ai sm" href="#t-report/${r.id}">평가하기</a>`) : ""}</td></tr>`; }).join("")}
       </table></div></div>
-      <div class="card" style="margin-top:16px"><h3>프로젝트 계획서 (Ⅳ단원)</h3><div id="planv">${d.plan ? `<div class="small muted">마지막 저장 ${fmtDT(d.plan.at)}</div><div class="content" id="planhtml"></div>` : '<div class="muted">아직 작성하지 않았습니다.</div>'}</div></div>`;
+      <div class="card" style="margin-top:16px"><h3>프로젝트 계획서 (Ⅳ단원)</h3><div id="planv">${d.plan ? `<div class="small muted">마지막 저장 ${fmtDT(d.plan.at)}</div><div class="content" id="planhtml"></div>` : '<div class="muted">아직 작성하지 않았습니다.</div>'}</div></div>
+      </div>`;
+    $("#delst").onclick = Teacher._delStudent(u, uid);
+    if (tab !== "status") { Insight.render(tab, d, $("#insbox"), uid); return; }
     const days = lastDays(14);
     mkChart($("#sc1"), { type: "bar", data: { labels: days.map((x) => x.slice(5).replace("-", ".")), datasets: [{ data: days.map((x) => Math.round(d.daily[x] || 0)), backgroundColor: "#0fa3b1", borderRadius: 4 }] },
       options: { maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } } });
@@ -125,10 +132,11 @@ const Teacher = {
       box.innerHTML = form.html; $$("textarea.form-cell", box).forEach((t) => { t.value = d.plan.data[t.dataset.key] || ""; t.readOnly = true; });
       $$("textarea.note-input,input.selfcheck", box).forEach((x) => x.remove());
     }
-    $("#delst").onclick = async () => {
-      if (!(await confirmBox(`<b>${esc(u.name)}</b> 학생의 계정과 접속 기록, 형성평가, 보고서, 평가 결과를 모두 지웁니다. 되돌릴 수 없습니다.`, "삭제"))) return;
-      try { await API.del("/api/teacher/student/" + uid); toast("삭제했습니다."); App.go("t-dash"); } catch (e) { toast(e.message); }
-    };
+
+  },
+  _delStudent: (u, uid) => async () => {
+    if (!(await confirmBox(`<b>${esc(u.name)}</b> 학생의 계정과 접속 기록, 형성평가, 보고서, 평가 결과를 모두 지웁니다. 되돌릴 수 없습니다.`, "삭제"))) return;
+    try { await API.del("/api/teacher/student/" + uid); toast("삭제했습니다."); App.go("t-dash"); } catch (e) { toast(e.message); }
   },
   rfilter: { pid: "", st: "" },
   async reports() {
