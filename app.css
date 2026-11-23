@@ -198,3 +198,10 @@ ul.clean{margin:6px 0;padding-left:20px}ul.clean li{margin:3px 0}
   .sbar{grid-template-columns:120px 1fr 30px}
 }
 @media print{.topbar,.toc,.steps,.pager,.next-actions,.demo-bar{display:none!important}.book{display:block}}
+.fb-list{margin-bottom:14px;border:1px solid #f0d28a;background:#fffbf0;border-radius:12px;padding:12px 14px}
+.fb-head{font-weight:800;color:#7a4b00;margin-bottom:6px}
+.fb-item{padding:8px 0;border-top:1px dashed #ecd9a8}.fb-item:first-of-type{border-top:0}
+.fb-item.new .fb-text{font-weight:600}
+.fb-text{white-space:pre-wrap;margin-top:3px;color:var(--ink)}
+.fb-alert{display:block;text-decoration:none;color:var(--ink);background:#fffbf0;border-color:#f0d28a}
+.feedback-card{border-color:#f0d28a;background:#fffdf6}

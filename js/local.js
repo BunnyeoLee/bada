@@ -72,7 +72,7 @@ const Local = {
   sessOf(uid) { return Object.values(Local.st.sessions).filter((s) => s.userId === uid).sort((a, b) => a.loginAt - b.loginAt); },
   qsum(uid) { const o = {}; for (const a of Local.st.quiz) if (a.userId === uid) { const x = o[a.pid] || (o[a.pid] = { attempts: 0, first: null, best: 0, last: null }); x.attempts++; if (x.first === null) x.first = a.score; x.best = Math.max(x.best, a.score); x.last = a.score; } return o; },
   latest(uid) { const o = {}; for (const r of Object.values(Local.st.reports)) if (r.userId === uid && !r.replaced) o[r.pid] = r; return o; },
-  meta(r, ev) { const o = { id: r.id, pid: r.pid, userId: r.userId, title: r.title, filename: r.filename, size: r.size, at: r.at, version: r.version, chars: (r.text || "").length, attachments: (r.attachments || []).map((a) => ({ name: a.name, size: a.size })) };
+  meta(r, ev) { const o = { id: r.id, pid: r.pid, userId: r.userId, title: r.title, filename: r.filename, size: r.size, at: r.at, version: r.version, chars: (r.text || "").length, attachments: (r.attachments || []).map((a) => ({ name: a.name, size: a.size })), feedback: r.feedback || null };
     if (ev) { const e = Local.st.evals[r.id]; o.eval = e ? { at: e.at, total: e.total, grade: e.grade, final: !!e.finalSeteuk } : null; } return o; },
   daily(uid) { const o = {}; for (const s of Object.values(Local.st.sessions)) { if (uid ? s.userId !== uid : Local.st.users[s.userId]?.role !== "student") continue; const d = new Date(s.loginAt + 9 * 3600e3).toISOString().slice(0, 10); o[d] = (o[d] || 0) + Local.dur(s) / 60000; } return o; },
   async handle(method, path, b = {}) {
@@ -148,6 +148,10 @@ const Local = {
         activity: S.activity[u.id] || { pages: {}, labs: {} }, plan: S.plans[u.id] || null, daily: Local.daily(u.id) };
     }
     if (method === "GET" && path === "/api/teacher/reports") { need("teacher"); return { aiReady: true, reports: Object.values(S.reports).filter((r) => !r.replaced).sort((p, q) => q.at - p.at).map((r) => ({ ...Local.meta(r, true), student: S.users[r.userId]?.name || "(삭제됨)", email: S.users[r.userId]?.email || "" })) }; }
+    if (method === "PUT" && (x = m(/^\/api\/teacher\/report\/(\w+)\/feedback$/))) {
+      need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다.");
+      const t = String(b.text || "").trim().slice(0, 2000); r.feedback = t ? { text: t, at: now } : null; Local.save(); return { feedback: r.feedback };
+    }
     if ((x = m(/^\/api\/teacher\/report\/(\w+)(\/eval)?$/))) {
       need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다.");
       if (method === "GET") return { report: { ...Local.meta(r, true), text: r.text, student: Local.pub(S.users[r.userId]) }, eval: S.evals[r.id] || null };

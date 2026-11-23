@@ -69,6 +69,8 @@ const Student = {
         <div class="card stat"><div class="k">형성평가 평균(최고 점수 기준)</div><div class="v">${avg ?? "–"}<small>${avg !== null ? `점 · ${qs.length}/${App.order().length}` : ""}</small></div></div>
         <div class="card stat"><div class="k">제출한 보고서</div><div class="v">${Object.keys(prog.reports).length}<small>/${App.order().length}</small></div></div>
       </div>
+      ${(() => { const seen = LS.get("fbseen:" + App.user.id, 0), n = Object.values(prog.reports).filter((x) => x.feedback && x.feedback.at > seen).length;
+        return n ? `<a class="card fb-alert" href="#report" style="margin-top:16px">💬 <b>선생님 피드백 ${n}개가 도착했습니다.</b> <span class="muted">눌러서 확인하기 →</span></a>` : ""; })()}
       <div class="card" style="margin-top:16px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <div style="flex:1;min-width:240px"><b>이어서 학습하기</b><div class="muted small">${lastP ? esc(lastP.unit.no + " " + lastP.title) : "처음이라면 '들어가며'부터 시작해 보세요."}</div></div>
         <a class="btn primary" href="#book/${lastP ? lastP.id : App.pages[0].id}">📖 ${lastP ? "이어서 읽기" : "교과서 시작하기"}</a>
@@ -152,7 +154,7 @@ const Student = {
           <div class="hint">보고서에는 ① 문제 정의 ② 데이터 수집·명세 ③ 전처리(문제점과 해결 이유) ④ 탐색적 분석(그래프와 해석) ⑤ 모델링·평가(기준선, 지표) ⑥ 공유·한계·성찰이 드러나게 써 주세요.</div>
         </form>
         <div class="card"><h3>내가 제출한 보고서</h3><div id="mine"><span class="spin"></span></div>
-          <p class="small muted" style="margin-top:14px">제출한 보고서는 선생님이 확인하고 평가합니다. 평가 결과는 선생님만 볼 수 있습니다.</p></div>
+          <p class="small muted" style="margin-top:14px">제출한 보고서는 선생님이 확인하고 평가합니다. 선생님이 보낸 피드백은 이 화면에 표시됩니다.</p></div>
       </div>`);
     let main_file = null, text = "";
     const show = async (f) => {
@@ -194,9 +196,15 @@ const Student = {
     try {
       const r = await API.get("/api/reports/mine");
       if (!main.isConnected) return;
-      $("#mine").innerHTML = r.reports.length ? `<div class="twrap"><table class="t"><tr><th>프로젝트</th><th>제목·파일</th><th>제출</th><th>상태</th></tr>${r.reports.map((x) => `
+      const seen = LS.get("fbseen:" + App.user.id, 0), fbs = r.reports.filter((x) => x.feedback);
+      const isNew = (x) => x.feedback && x.feedback.at > seen;
+      $("#mine").innerHTML = (fbs.length ? `<div class="fb-list"><div class="fb-head">💬 선생님 피드백 <span class="muted small">${fbs.length}개</span></div>${fbs.map((x) => `
+          <div class="fb-item ${isNew(x) ? "new" : ""}"><div class="small muted">${P[x.pid].sec} ${esc(P[x.pid].name)} · ${esc(x.title || x.filename)} (${x.version}판) · ${fmtDT(x.feedback.at)} ${isNew(x) ? '<span class="pill warn">새 피드백</span>' : ""}</div>
+          <div class="fb-text">${esc(x.feedback.text)}</div></div>`).join("")}</div>` : "")
+        + (r.reports.length ? `<div class="twrap"><table class="t"><tr><th>프로젝트</th><th>제목·파일</th><th>제출</th><th>상태</th></tr>${r.reports.map((x) => `
         <tr><td>${P[x.pid].sec} ${esc(P[x.pid].name)}</td><td><b>${esc(x.title || "(제목 없음)")}</b><div class="small muted">${esc(x.filename)} · ${fmtSize(x.size)}${x.attachments.length ? ` · 첨부 ${x.attachments.length}` : ""}</div></td>
-        <td class="small">${fmtDT(x.at)}<div class="muted">${x.version}판</div></td><td>${x.replaced ? '<span class="pill gray">이전 판</span>' : '<span class="pill ok">제출됨</span>'}</td></tr>`).join("")}</table></div>` : '<div class="empty">아직 제출한 보고서가 없습니다.</div>';
+        <td class="small">${fmtDT(x.at)}<div class="muted">${x.version}판</div></td><td>${x.replaced ? '<span class="pill gray">이전 판</span>' : '<span class="pill ok">제출됨</span>'}${x.feedback ? '<div style="margin-top:4px"><span class="pill warn">💬 피드백</span></div>' : ""}</td></tr>`).join("")}</table></div>` : '<div class="empty">아직 제출한 보고서가 없습니다.</div>');
+      const last = Math.max(0, ...fbs.map((x) => x.feedback.at || 0)); if (last > seen) LS.set("fbseen:" + App.user.id, last);   // 읽음 처리
     } catch (e) { $("#mine").textContent = e.message; }
   },
   data(pid) {

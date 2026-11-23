@@ -155,7 +155,7 @@ const Teacher = {
         <tr><td><b>${esc(r.student)}</b><div class="small muted">${esc(r.email)}</div></td><td class="small">${P[r.pid].sec} ${esc(P[r.pid].name)}</td>
         <td><a href="#t-report/${r.id}">${esc(r.title || "(제목 없음)")}</a><div class="small muted">${esc(r.filename)} · ${r.chars.toLocaleString()}자${r.attachments.length ? ` · 첨부 ${r.attachments.length}` : ""}</div></td>
         <td class="small">${fmtDT(r.at)}<div class="muted">${r.version}판</div></td>
-        <td data-ev="${r.id}">${r.eval ? `<span class="pill ok">${r.eval.total}점 · ${r.eval.grade}</span>${r.eval.final ? ' <span class="pill">평가 확정</span>' : ""}` : '<span class="pill gray">미평가</span>'}</td>
+        <td data-ev="${r.id}">${r.eval ? `<span class="pill ok">${r.eval.total}점 · ${r.eval.grade}</span>${r.eval.final ? ' <span class="pill">평가 확정</span>' : ""}` : '<span class="pill gray">미평가</span>'}${r.feedback ? ' <span class="pill warn">💬 피드백 전달</span>' : ""}</td>
         <td style="white-space:nowrap">${r.eval ? `<a class="btn sm" href="#t-report/${r.id}">결과 보기</a>` : `<button class="btn ai sm" data-go="${r.id}">평가하기</button>`}</td></tr>`).join("")}</table>`
         : '<div class="empty">조건에 맞는 보고서가 없습니다.</div>';
       $$("[data-go]").forEach((b) => (b.onclick = () => App.go("t-report/" + b.dataset.go + "/run")));
@@ -189,9 +189,12 @@ const Teacher = {
       <div class="row"><h1 class="title" style="margin:0">${esc(r.title || "(제목 없음)")}</h1></div>
       <p class="sub">${esc(r.student?.name || "")} · ${P.unitNo} ${P.sec} ${esc(P.name)} · ${esc(P.algo)} · 제출 ${fmtDT(r.at)} (${r.version}판)</p>
       <div class="eval-grid">
+        <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        <div class="card feedback-card" id="fbbox"></div>
         <div class="card"><h3>제출 보고서</h3>
           <div class="row"><button class="btn sm" data-f="main">⬇ ${esc(r.filename)} (${fmtSize(r.size)})</button>${r.attachments.map((a, i) => `<button class="btn sm" data-f="${i}">⬇ ${esc(a.name)}</button>`).join("")}</div>
           <label class="f">보고서 내용(자동 추출, ${r.chars.toLocaleString()}자)</label><div class="preview" style="max-height:640px">${esc(r.text || "(읽어 낸 글자가 없습니다)")}</div></div>
+        </div>
         <div class="card" id="evbox"></div>
       </div>`;
     $$("[data-f]", main).forEach((b) => (b.onclick = () => {
@@ -199,8 +202,28 @@ const Teacher = {
       if (App.mode === "gas") { const u = b.dataset.f === "main" ? r.fileUrl : r.attachments[+b.dataset.f]?.url; return u ? window.open(u, "_blank", "noopener") : toast("파일 주소가 없습니다."); }
       Files.download(`/api/teacher/report/${rid}/file/${b.dataset.f}`);
     }));
+    Teacher.drawFeedback(r.feedback, rid);
     Teacher.drawEval(d.eval, rid);
     if (auto && !d.eval) $("#evrun")?.click();
+  },
+  drawFeedback(fb, rid) {
+    const box = $("#fbbox"); if (!box) return;
+    box.innerHTML = `
+      <div class="row"><h3 style="margin:0">💬 학생에게 보내는 피드백</h3><span class="spacer"></span>
+        <span class="pill ${fb ? "ok" : "gray"}" id="fbst">${fb ? "학생에게 전달됨 · " + fmtDT(fb.at) : "아직 보내지 않음"}</span></div>
+      <p class="small muted" style="margin:6px 0 8px">여기에 쓴 내용만 학생의 [보고서 제출] 화면에 보입니다. 점수와 종합 평가 의견은 학생에게 보이지 않습니다.</p>
+      <textarea id="fbtext" rows="4" maxlength="2000" placeholder="예: 가상의 데이터 대신 실제 데이터로 다시 도전해 예측의 신뢰도를 높여 보자.">${esc(fb ? fb.text : "")}</textarea>
+      <div class="row" style="margin-top:8px"><span class="counter" id="fbcnt"></span><span class="spacer"></span>
+        ${fb ? '<button class="btn sm danger" id="fbdel">전달 취소</button>' : ""}<button class="btn primary sm" id="fbsave">${fb ? "고쳐서 다시 보내기" : "학생에게 보내기"}</button></div>`;
+    const ta = $("#fbtext"), cnt = () => ($("#fbcnt").textContent = `${[...ta.value].length} / 2000자`);
+    ta.oninput = cnt; cnt();
+    const send = async (text) => {
+      const b = $("#fbsave"); b.disabled = true;
+      try { const r = await API.put(`/api/teacher/report/${rid}/feedback`, { text }); toast(text ? "피드백을 학생에게 보냈습니다." : "피드백 전달을 취소했습니다."); Teacher.drawFeedback(r.feedback, rid); }
+      catch (x) { toast(/없는 주소/.test(x.message) ? "학습 기록 서버(구글 Apps Script)의 Code.gs를 새 판으로 바꿔 붙여 넣고 새 버전으로 배포해야 피드백을 보낼 수 있습니다." : x.message, 6000); if (b.isConnected) b.disabled = false; }
+    };
+    $("#fbsave").onclick = () => { const t = ta.value.trim(); if (!t) return toast("피드백 내용을 쓰세요."); send(t); };
+    $("#fbdel") && ($("#fbdel").onclick = async () => { if (await confirmBox("학생에게 보낸 피드백을 지울까요? 학생 화면에서도 사라집니다.", "전달 취소")) send(""); });
   },
   drawEval(e, rid) {
     const box = $("#evbox");
@@ -220,15 +243,13 @@ const Teacher = {
         <label class="f">종합 평가 의견 ${e.finalSeteuk ? '<span class="pill ok">교사 확정본</span>' : '<span class="pill warn">AI 초안 · 검토 필요</span>'}</label>
         <textarea class="seteuk" id="se">${esc(text)}</textarea>
         <div class="row"><span class="counter" id="secnt"></span><span class="spacer"></span><button class="btn sm" id="secopy">복사</button>${e.finalSeteuk ? '<button class="btn sm" id="seai">AI 초안으로 되돌리기</button>' : ""}<button class="btn primary sm" id="sesave">확정 저장</button></div>
-        <label class="f">교사 메모(학생에게 보이지 않음)</label><textarea id="tn" rows="2">${esc(e.teacherNote || "")}</textarea>
         <div class="row" style="margin-top:14px"><button class="btn ai sm" id="evrun">✨ 다시 평가하기</button><span class="small muted">다시 평가하면 확정한 평가 의견이 AI 새 초안으로 바뀝니다.</span></div><div class="err" id="everr"></div>
         <div class="caution"><b>⚠ 유의 사항</b> 이 화면의 점수와 종합 평가 의견은 인공지능이 작성한 <b>참고용 초안</b>입니다. 학교생활기록부의 교과 세부능력 및 특기사항(세특)을 작성할 때에는 <b>참조 자료로만</b> 활용하고, 그대로 옮겨 적지 마세요. 내용이 학생의 실제 수행과 일치하는지, 사실과 다르거나 과장된 표현은 없는지, 기재 요령을 지켰는지는 <b>반드시 교사가 직접 검토하고 수정</b>해야 합니다.</div>`;
       const se = $("#se"), cnt = () => { const n = [...se.value].length, b = neisBytes(se.value); $("#secnt").textContent = `${n}자 · ${b.toLocaleString()}바이트 (학교생활기록부 입력 기준 1,500바이트)`; $("#secnt").classList.toggle("over", b > 1500); };
       se.oninput = cnt; cnt();
       $("#secopy").onclick = () => navigator.clipboard.writeText(se.value).then(() => toast("평가 의견을 복사했습니다."), () => toast("복사하지 못했습니다."));
-      $("#sesave").onclick = async () => { try { const r = await API.put(`/api/teacher/report/${rid}/eval`, { finalSeteuk: se.value, teacherNote: $("#tn").value }); toast("확정 저장했습니다."); Teacher.drawEval(r.eval, rid); } catch (x) { toast(x.message); } };
+      $("#sesave").onclick = async () => { try { const r = await API.put(`/api/teacher/report/${rid}/eval`, { finalSeteuk: se.value }); toast("확정 저장했습니다."); Teacher.drawEval(r.eval, rid); } catch (x) { toast(x.message); } };
       $("#seai") && ($("#seai").onclick = async () => { const r = await API.put(`/api/teacher/report/${rid}/eval`, { finalSeteuk: "" }); r.eval.finalSeteuk = null; Teacher.drawEval(r.eval, rid); });
-      $("#tn").onchange = () => API.put(`/api/teacher/report/${rid}/eval`, { teacherNote: $("#tn").value }).then(() => toast("메모를 저장했습니다.")).catch((x) => toast(x.message));
     }
     $("#evrun").onclick = async () => {
       if (e && !(await confirmBox("다시 평가할까요? 현재 결과와 확정한 평가 의견이 새 결과로 바뀝니다.", "다시 평가"))) return;
