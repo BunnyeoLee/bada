@@ -219,3 +219,6 @@ ol.path li::before{content:counter(p);display:grid;place-items:center;min-width:
 ol.path li .pill{min-width:64px;text-align:center}
 ol.path .pt{flex:1;min-width:200px}
 .ai-ins{margin-top:12px;background:#f8f6ff;border:1px solid #e2dbf7;border-radius:10px;padding:12px 16px}
+
+.rp-act{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.btn.danger[disabled]{opacity:.4;cursor:not-allowed}

@@ -40,6 +40,37 @@ const Extract = {
   b64(file) { return new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = no; r.readAsDataURL(file); }); },
 };
 
+/* 보고서 다시 올리기 창(학생 '다시 제출', 교사 '수정본 올리기'에 함께 씀). 확인하면 {title, filename, mime, data, text}를 돌려줌 */
+const ReportModal = {
+  open({ heading, title, note, okLabel = "올리기" }) {
+    return new Promise((done) => modal(`<h3 style="margin-top:0">${esc(heading)}</h3>${note ? `<p class="small muted" style="margin-top:0">${note}</p>` : ""}
+      <label class="f">보고서 제목</label><input id="rmt" maxlength="120" style="width:100%" value="${esc(title || "")}">
+      <label class="f">새 보고서 파일 <span class="muted">(PDF · HWPX · DOCX · PPTX · IPYNB · TXT · MD, 20MB 이하)</span></label>
+      <div class="row"><label for="rmf" class="btn primary sm">📄 파일 선택</label><span class="small muted" id="rmn">선택한 파일 없음</span></div>
+      <input type="file" id="rmf" accept=".pdf,.hwpx,.docx,.pptx,.ipynb,.txt,.md" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" tabindex="-1">
+      <div class="err" id="rme"></div>
+      <div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" data-close>취소</button><button class="btn primary" id="rmok" disabled>${esc(okLabel)}</button></div>`,
+      (el, close) => {
+        let file = null, text = "", busy = false;
+        $("[data-close]", el).addEventListener("click", () => !busy && done(null));
+        $("#rmf", el).onchange = async (e) => {
+          const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+          $("#rme", el).textContent = ""; $("#rmok", el).disabled = true; file = null;
+          if (f.size > 20e6) return ($("#rme", el).textContent = "20MB 이하 파일만 올릴 수 있습니다.");
+          $("#rmn", el).innerHTML = '<span class="spin"></span> 내용을 읽는 중…';
+          try { text = (await Extract.text(f)).trim(); file = f; $("#rmn", el).textContent = `${f.name} (${fmtSize(f.size)}) · ${text.length.toLocaleString()}자를 읽었습니다.`; $("#rmok", el).disabled = false; }
+          catch (x) { $("#rmn", el).textContent = f.name; $("#rme", el).textContent = x.message; }
+        };
+        $("#rmok", el).onclick = async () => {
+          const t = $("#rmt", el).value.trim(); if (!t) return ($("#rme", el).textContent = "제목을 입력하세요.");
+          busy = true; $("#rmok", el).disabled = true; $("#rmok", el).innerHTML = '<span class="spin"></span> 준비 중…';
+          try { const data = await Extract.b64(file); close(); done({ title: t, filename: file.name, mime: file.type || "", data, text }); }
+          catch (x) { busy = false; $("#rme", el).textContent = x.message; $("#rmok", el).disabled = false; $("#rmok", el).textContent = okLabel; }
+        };
+      }));
+  },
+};
+
 const Student = {
   routes: {
     home: () => Student.home(), quiz: (p) => (p[1] ? Student.quiz(p[1]) : Student.quizIndex()), report: (p) => Student.report(p[1]), data: (p) => Student.data(p[1]),
@@ -134,7 +165,7 @@ const Student = {
     const P = App.content.labs.projects;
     const main = App.shell("report", `
       <h1 class="title">📤 빅데이터 분석 결과보고서 제출</h1>
-      <p class="sub">프로젝트를 6단계로 수행한 결과보고서를 올리세요. PDF, HWPX, DOCX, PPTX, 노트북(IPYNB), TXT를 받습니다. 같은 프로젝트에 다시 올리면 새 판으로 바뀝니다.</p>
+      <p class="sub">프로젝트를 6단계로 수행한 결과보고서를 올리세요. PDF, HWPX, DOCX, PPTX, 노트북(IPYNB), TXT를 받습니다. 같은 프로젝트에 다시 올리면 새 판으로 바뀝니다. 제출한 보고서는 오른쪽 목록에서 제목 수정, 다시 제출, 삭제를 할 수 있습니다.</p>
       <div class="grid g2">
         <form class="card" id="rf">
           <h3>보고서 올리기</h3>
@@ -201,10 +232,27 @@ const Student = {
       $("#mine").innerHTML = (fbs.length ? `<div class="fb-list"><div class="fb-head">💬 선생님 피드백 <span class="muted small">${fbs.length}개</span></div>${fbs.map((x) => `
           <div class="fb-item ${isNew(x) ? "new" : ""}"><div class="small muted">${P[x.pid].sec} ${esc(P[x.pid].name)} · ${esc(x.title || x.filename)} (${x.version}판) · ${fmtDT(x.feedback.at)} ${isNew(x) ? '<span class="pill warn">새 피드백</span>' : ""}</div>
           <div class="fb-text">${esc(x.feedback.text)}</div></div>`).join("")}</div>` : "")
-        + (r.reports.length ? `<div class="twrap"><table class="t"><tr><th>프로젝트</th><th>제목·파일</th><th>제출</th><th>상태</th></tr>${r.reports.map((x) => `
-        <tr><td>${P[x.pid].sec} ${esc(P[x.pid].name)}</td><td><b>${esc(x.title || "(제목 없음)")}</b><div class="small muted">${esc(x.filename)} · ${fmtSize(x.size)}${x.attachments.length ? ` · 첨부 ${x.attachments.length}` : ""}</div></td>
-        <td class="small">${fmtDT(x.at)}<div class="muted">${x.version}판</div></td><td>${x.replaced ? '<span class="pill gray">이전 판</span>' : '<span class="pill ok">제출됨</span>'}${x.feedback ? '<div style="margin-top:4px"><span class="pill warn">💬 피드백</span></div>' : ""}</td></tr>`).join("")}</table></div>` : '<div class="empty">아직 제출한 보고서가 없습니다.</div>');
+        + (r.reports.length ? `<div class="twrap"><table class="t"><tr><th>보고서</th><th>제출</th><th>상태</th></tr>${r.reports.map((x) => `
+        <tr><td><div class="small muted">${P[x.pid].sec} ${esc(P[x.pid].name)}</div><b>${esc(x.title || "(제목 없음)")}</b><div class="small muted">${esc(x.filename)} · ${fmtSize(x.size)}${x.attachments.length ? ` · 첨부 ${x.attachments.length}` : ""}</div>
+          <div class="rp-act">${x.replaced ? "" : `<button class="btn sm" data-ren="${x.id}">✏️ 제목 수정</button><button class="btn sm" data-re="${x.id}">🔄 다시 제출</button>`}<button class="btn sm danger" data-del="${x.id}" ${x.locked ? 'disabled title="선생님이 평가를 확정한 보고서는 지울 수 없습니다"' : ""}>🗑 삭제</button></div></td>
+        <td class="small">${fmtDT(x.at)}<div class="muted">${x.version}판</div></td><td>${x.replaced ? '<span class="pill gray">이전 판</span>' : '<span class="pill ok">제출됨</span>'}${x.uploadedBy === "teacher" ? '<div style="margin-top:4px"><span class="pill">선생님이 올림</span></div>' : ""}${x.feedback ? '<div style="margin-top:4px"><span class="pill warn">💬 피드백</span></div>' : ""}${x.locked ? '<div style="margin-top:4px"><span class="pill gray">평가 확정</span></div>' : ""}</td></tr>`).join("")}</table></div>` : '<div class="empty">아직 제출한 보고서가 없습니다.</div>');
       const last = Math.max(0, ...fbs.map((x) => x.feedback.at || 0)); if (last > seen) LS.set("fbseen:" + App.user.id, last);   // 읽음 처리
+      const byId = Object.fromEntries(r.reports.map((x) => [x.id, x])), again = () => main.isConnected && Student.report($("[name=pid]")?.value || pid);
+      $$("[data-ren]", main).forEach((b) => (b.onclick = async () => {
+        const x = byId[b.dataset.ren], t = await inputBox(`<b>${esc(P[x.pid].sec)} ${esc(P[x.pid].name)}</b> 보고서의 제목을 고칩니다.`, x.title || "");
+        if (!t) return; try { await API.put("/api/reports/" + x.id, { title: t }); toast("제목을 고쳤습니다."); again(); } catch (e) { toast(e.message, 5000); }
+      }));
+      $$("[data-re]", main).forEach((b) => (b.onclick = async () => {
+        const x = byId[b.dataset.re], v = await ReportModal.open({ heading: `🔄 ${P[x.pid].sec} ${P[x.pid].name} 다시 제출`, title: x.title, okLabel: "다시 제출",
+          note: `고친 보고서 파일을 올리면 <b>${x.version + 1}판</b>으로 제출되고, 지금 판(${x.version}판)은 '이전 판'으로 남습니다. 추가 산출물도 함께 올리려면 왼쪽 제출 칸을 쓰세요.` });
+        if (!v) return; toast("올리는 중…");
+        try { await API.post("/api/reports", { pid: x.pid, ...v, attachments: [] }); toast("다시 제출했습니다."); again(); } catch (e) { toast("제출하지 못했습니다: " + e.message, 5000); }
+      }));
+      $$("[data-del]", main).forEach((b) => (b.onclick = async () => {
+        const x = byId[b.dataset.del];
+        if (!(await confirmBox(`<b>${esc(x.title || x.filename)}</b> (${x.version}판)을 지웁니다.${x.replaced ? "" : " 이전 판이 있으면 그 판이 다시 제출 상태가 됩니다."} 이 판에 대한 선생님의 평가와 피드백도 함께 지워지고, 되돌릴 수 없습니다.`, "삭제"))) return;
+        try { const o = await API.del("/api/reports/" + x.id); toast(o.restored ? `지웠습니다. ${o.restored.version}판이 다시 제출 상태가 되었습니다.` : "지웠습니다."); again(); } catch (e) { toast(e.message, 5000); }
+      }));
     } catch (e) { $("#mine").textContent = e.message; }
   },
   data(pid) {

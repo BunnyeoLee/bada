@@ -24,6 +24,14 @@ function confirmBox(msg, okLabel = "확인") {
     (el, close) => { $("#cfm", el).onclick = () => { close(); ok(true); }; $("[data-close]", el).addEventListener("click", () => ok(false)); }));
 }
 
+function inputBox(msg, value = "", okLabel = "저장") {
+  return new Promise((ok) => modal(`<p style="margin-top:0">${msg}</p><input id="ibx" maxlength="120" style="width:100%" value="${esc(value)}"><div class="err" id="ibe"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" data-close>취소</button><button class="btn primary" id="ibok">${esc(okLabel)}</button></div>`,
+    (el, close) => { const i = $("#ibx", el); i.focus(); i.select();
+      const go = () => { const v = i.value.trim(); if (!v) return ($("#ibe", el).textContent = "내용을 입력하세요."); close(); ok(v); };
+      $("#ibok", el).onclick = go; i.onkeydown = (e) => e.key === "Enter" && go(); $("[data-close]", el).addEventListener("click", () => ok(null)); }));
+}
+
 const App = {
   mode: window.APP_MODE, artifact: window.APP_MODE === "demo" && !!window.claude, user: null, loginAt: null, content: {}, idleMinutes: 20,
   async start() {

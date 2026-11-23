@@ -72,9 +72,24 @@ const Local = {
   sessOf(uid) { return Object.values(Local.st.sessions).filter((s) => s.userId === uid).sort((a, b) => a.loginAt - b.loginAt); },
   qsum(uid) { const o = {}; for (const a of Local.st.quiz) if (a.userId === uid) { const x = o[a.pid] || (o[a.pid] = { attempts: 0, first: null, best: 0, last: null }); x.attempts++; if (x.first === null) x.first = a.score; x.best = Math.max(x.best, a.score); x.last = a.score; } return o; },
   latest(uid) { const o = {}; for (const r of Object.values(Local.st.reports)) if (r.userId === uid && !r.replaced) o[r.pid] = r; return o; },
-  meta(r, ev) { const o = { id: r.id, pid: r.pid, userId: r.userId, title: r.title, filename: r.filename, size: r.size, at: r.at, version: r.version, chars: (r.text || "").length, attachments: (r.attachments || []).map((a) => ({ name: a.name, size: a.size })), feedback: r.feedback || null };
+  meta(r, ev) { const o = { id: r.id, pid: r.pid, userId: r.userId, title: r.title, filename: r.filename, size: r.size, at: r.at, version: r.version, chars: (r.text || "").length, attachments: (r.attachments || []).map((a) => ({ name: a.name, size: a.size })), feedback: r.feedback || null, uploadedBy: r.uploadedBy || "student", locked: !!Local.st.evals[r.id]?.finalSeteuk };
     if (ev) { const e = Local.st.evals[r.id]; o.eval = e ? { at: e.at, total: e.total, grade: e.grade, final: !!e.finalSeteuk } : null; } return o; },
   daily(uid) { const o = {}; for (const s of Object.values(Local.st.sessions)) { if (uid ? s.userId !== uid : Local.st.users[s.userId]?.role !== "student") continue; const d = new Date(s.loginAt + 9 * 3600e3).toISOString().slice(0, 10); o[d] = (o[d] || 0) + Local.dur(s) / 60000; } return o; },
+  upload(uid, b, by) {
+    const S = Local.st, mine = Object.values(S.reports).filter((r) => r.userId === uid && r.pid === b.pid);
+    mine.forEach((r) => (r.replaced = true));
+    const id = Local.uid(10), size = Math.round((b.data || "").length * 0.75);
+    S.reports[id] = { id, userId: uid, pid: b.pid, title: b.title, filename: b.filename, mime: b.mime, size, text: String(b.text || "").slice(0, 120000),
+      attachments: (b.attachments || []).map((f) => ({ name: f.name, size: Math.round(f.data.length * .75), text: f.text, data: f.data.length < 1.4e6 ? f.data : null })),
+      data: (b.data || "").length < 1.4e6 ? b.data : null, at: Date.now(), version: mine.reduce((mx, r) => Math.max(mx, r.version || 1), 0) + 1, uploadedBy: by };
+    Local.save(); return { report: Local.meta(S.reports[id]) };
+  },
+  retitle(r, b) { const t = String(b.title || "").trim().slice(0, 120); if (!t) Local.err(400, "제목을 입력하세요."); r.title = t; r.editedAt = Date.now(); Local.save(); return { report: Local.meta(r) }; },
+  remove(r) {
+    const S = Local.st, cur = !r.replaced; delete S.reports[r.id]; delete S.evals[r.id]; let restored = null;
+    if (cur) { const p = Object.values(S.reports).filter((v) => v.userId === r.userId && v.pid === r.pid).sort((a, b) => b.version - a.version)[0]; if (p) { p.replaced = false; restored = { id: p.id, version: p.version }; } }
+    Local.save(); return { ok: true, restored };
+  },
   async handle(method, path, b = {}) {
     await new Promise((r) => setTimeout(r, 40));
     const S = Local.st, a = Local.auth(), need = (role) => { if (!a) { if (App.user && path !== "/api/logout") Auth.expired(); Local.err(401, "로그인이 필요합니다."); } if (role && a.u.role !== role) Local.err(403, role === "teacher" ? "교사만 사용할 수 있는 기능입니다." : "학생 계정으로 이용하세요."); };
@@ -118,13 +133,12 @@ const Local = {
       return { quiz: Local.qsum(a.u.id), reports: Object.fromEntries(Object.entries(rp).map(([k, r]) => [k, Local.meta(r)])), pages: Object.keys(act.pages),
         labs: Object.fromEntries(Object.entries(act.labs).map(([k, l]) => [k, { runs: l.runs, cells: Object.keys(l.cells).length }])), studyMs: Local.sessOf(a.u.id).reduce((s, x) => s + Local.dur(x), 0), sessions: Local.sessOf(a.u.id).length };
     }
-    if (method === "POST" && path === "/api/reports") {
-      need("student"); const prev = Object.values(S.reports).filter((r) => r.userId === a.u.id && r.pid === b.pid && !r.replaced); prev.forEach((r) => (r.replaced = true));
-      const id = Local.uid(10), size = Math.round((b.data || "").length * 0.75);
-      S.reports[id] = { id, userId: a.u.id, pid: b.pid, title: b.title, filename: b.filename, mime: b.mime, size, text: String(b.text || "").slice(0, 120000),
-        attachments: (b.attachments || []).map((f) => ({ name: f.name, size: Math.round(f.data.length * .75), text: f.text, data: f.data.length < 1.4e6 ? f.data : null })),
-        data: b.data.length < 1.4e6 ? b.data : null, at: now, version: prev.length + 1 };
-      Local.save(); return { report: Local.meta(S.reports[id]) };
+    if (method === "POST" && path === "/api/reports") { need("student"); return Local.upload(a.u.id, b, "student"); }
+    if ((x = m(/^\/api\/reports\/(\w+)$/)) && (method === "PUT" || method === "DELETE")) {
+      need("student"); const r = S.reports[x[1]]; if (!r || r.userId !== a.u.id) Local.err(403, "내가 제출한 보고서만 고칠 수 있습니다.");
+      if (method === "PUT") return Local.retitle(r, b);
+      if (S.evals[r.id]?.finalSeteuk) Local.err(409, "선생님이 평가를 확정한 보고서는 지울 수 없습니다. 새 파일로 다시 제출하거나 선생님께 삭제를 요청하세요.");
+      return Local.remove(r);
     }
     if (method === "GET" && path === "/api/reports/mine") { need("student"); return { reports: Object.values(S.reports).filter((r) => r.userId === a.u.id).sort((p, q) => q.at - p.at).map((r) => ({ ...Local.meta(r), replaced: !!r.replaced })) }; }
     if (method === "GET" && path === "/api/plan") { need(); return { plan: S.plans[a.u.id] || null }; }
@@ -154,9 +168,12 @@ const Local = {
       need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다.");
       const t = String(b.text || "").trim().slice(0, 2000); r.feedback = t ? { text: t, at: now } : null; Local.save(); return { feedback: r.feedback };
     }
+    if ((x = m(/^\/api\/teacher\/report\/(\w+)\/replace$/)) && method === "POST") { need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다."); return Local.upload(r.userId, { ...b, pid: r.pid, title: b.title || r.title, attachments: [] }, "teacher"); }
+    if ((x = m(/^\/api\/teacher\/report\/(\w+)$/)) && (method === "PUT" || method === "DELETE")) { need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다."); return method === "PUT" ? Local.retitle(r, b) : Local.remove(r); }
     if ((x = m(/^\/api\/teacher\/report\/(\w+)(\/eval)?$/))) {
       need("teacher"); const r = S.reports[x[1]]; if (!r) Local.err(404, "보고서를 찾을 수 없습니다.");
-      if (method === "GET") return { report: { ...Local.meta(r, true), text: r.text, student: Local.pub(S.users[r.userId]) }, eval: S.evals[r.id] || null };
+      if (method === "GET") return { report: { ...Local.meta(r, true), text: r.text, student: Local.pub(S.users[r.userId]), current: !r.replaced }, eval: S.evals[r.id] || null,
+        versions: Object.values(S.reports).filter((v) => v.userId === r.userId && v.pid === r.pid).sort((p, q) => q.version - p.version).map((v) => ({ id: v.id, version: v.version, at: v.at, title: v.title, filename: v.filename, size: v.size, uploadedBy: v.uploadedBy || "student", current: !v.replaced, evaluated: !!S.evals[v.id] })) };
       if (method === "PUT") { const e = S.evals[r.id]; if (!e) Local.err(404, "먼저 평가하세요."); if (typeof b.finalSeteuk === "string") e.finalSeteuk = b.finalSeteuk || null; if (typeof b.teacherNote === "string") e.teacherNote = b.teacherNote; Local.save(); return { eval: e }; }
     }
     Local.err(404, "체험판에서 지원하지 않는 기능입니다: " + path);

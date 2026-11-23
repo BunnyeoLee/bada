@@ -184,6 +184,32 @@ const Teacher = {
       btn.disabled = false; btn.textContent = "✨ 미평가 보고서 모두 평가하기"; draw();
     };
   },
+  drawManage(r, vs, rid) {
+    const box = $("#mgbox"); if (!box) return;
+    box.innerHTML = `<div class="row"><h3 style="margin:0">🛠 보고서 관리</h3><span class="spacer"></span>
+        <button class="btn sm" id="mgren">✏️ 제목 수정</button><button class="btn sm" id="mgup">⬆ 수정본 올리기</button><button class="btn sm danger" id="mgdel">🗑 이 판 삭제</button></div>
+      <p class="small muted" style="margin:6px 0 10px">수정본을 올리면 이 학생의 새 판(${Math.max(...vs.map((v) => v.version), r.version) + 1}판)으로 제출됩니다. 지금 판과 평가는 '이전 판'으로 남습니다. 학생 화면에는 '선생님이 올림'으로 표시됩니다.</p>
+      ${vs.length > 1 ? `<div class="twrap"><table class="t"><tr><th>판</th><th>제출</th><th>제목·파일</th><th>상태</th><th></th></tr>${vs.map((v) => `
+        <tr ${v.id === rid ? 'style="background:#eef8f9"' : ""}><td><b>${v.version}판</b></td><td class="small">${fmtDT(v.at)}</td><td>${esc(v.title || "(제목 없음)")}<div class="small muted">${esc(v.filename)} · ${fmtSize(v.size)}${v.uploadedBy === "teacher" ? " · 교사가 올림" : ""}</div></td>
+        <td>${v.current ? '<span class="pill ok">현재 판</span>' : '<span class="pill gray">이전 판</span>'}${v.evaluated ? ' <span class="pill">평가됨</span>' : ""}</td>
+        <td>${v.id === rid ? '<span class="small muted">보는 중</span>' : `<a class="btn sm" href="#t-report/${v.id}">보기</a>`}</td></tr>`).join("")}</table></div>` : '<div class="small muted">이 프로젝트에 제출된 판은 이것 하나입니다.</div>'}`;
+    $("#mgren").onclick = async () => {
+      const t = await inputBox("보고서 제목을 고칩니다. 학생 화면에도 바뀐 제목이 보입니다.", r.title || ""); if (!t) return;
+      try { await API.put("/api/teacher/report/" + rid, { title: t }); toast("제목을 고쳤습니다."); Teacher.report(rid); } catch (e) { toast(e.message, 5000); }
+    };
+    $("#mgup").onclick = async () => {
+      const v = await ReportModal.open({ heading: `⬆ ${r.student?.name || ""} 학생 보고서 수정본 올리기`, title: r.title, okLabel: "수정본 올리기",
+        note: "학생이 잘못 올린 파일을 바로잡거나, 학생에게 받은 수정본을 대신 올릴 때 씁니다." });
+      if (!v) return; toast("올리는 중…");
+      try { const o = await API.post(`/api/teacher/report/${rid}/replace`, v); toast(`${o.report.version}판으로 올렸습니다.`); App.go("t-report/" + o.report.id); } catch (e) { toast("올리지 못했습니다: " + e.message, 5000); }
+    };
+    $("#mgdel").onclick = async () => {
+      const prev = vs.filter((v) => v.id !== rid).sort((a, b) => b.version - a.version)[0];
+      if (!(await confirmBox(`<b>${esc(r.student?.name || "")}</b> 학생의 <b>${esc(r.title || r.filename)}</b> (${r.version}판)을 지웁니다. 보고서 파일(드라이브 휴지통으로 이동), AI 평가, 종합 평가 의견, 피드백이 함께 지워지며 되돌릴 수 없습니다.${r.current !== false && prev ? `<br><br>지운 뒤에는 <b>${prev.version}판</b>이 현재 판이 됩니다.` : ""}`, "삭제"))) return;
+      try { const o = await API.del("/api/teacher/report/" + rid); toast(o.restored ? `지웠습니다. ${o.restored.version}판이 현재 판이 되었습니다.` : "지웠습니다.");
+        App.go(o.restored ? "t-report/" + o.restored.id : "t-reports"); } catch (e) { toast(e.message, 5000); }
+    };
+  },
   evaluate(rid) { return App.mode === "demo" ? Local.evaluate(rid) : API.post(`/api/teacher/report/${rid}/evaluate`).then((r) => r.eval); },
   async report(rid) {
     clearCharts(); clearInterval(Teacher.refresh);
@@ -195,10 +221,11 @@ const Teacher = {
     main.innerHTML = `
       <div class="crumb"><a href="#t-reports">보고서 평가</a> › ${esc(r.student?.name || "")}</div>
       <div class="row"><h1 class="title" style="margin:0">${esc(r.title || "(제목 없음)")}</h1></div>
-      <p class="sub">${esc(r.student?.name || "")} · ${P.unitNo} ${P.sec} ${esc(P.name)} · ${esc(P.algo)} · 제출 ${fmtDT(r.at)} (${r.version}판)</p>
+      <p class="sub">${esc(r.student?.name || "")} · ${P.unitNo} ${P.sec} ${esc(P.name)} · ${esc(P.algo)} · 제출 ${fmtDT(r.at)} (${r.version}판${r.uploadedBy === "teacher" ? " · 교사가 올림" : ""})${r.current === false ? ' <span class="pill gray">이전 판</span>' : ""}</p>
       <div class="eval-grid">
         <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
         <div class="card feedback-card" id="fbbox"></div>
+        <div class="card" id="mgbox"></div>
         <div class="card"><h3>제출 보고서</h3>
           <div class="row"><button class="btn sm" data-f="main">⬇ ${esc(r.filename)} (${fmtSize(r.size)})</button>${r.attachments.map((a, i) => `<button class="btn sm" data-f="${i}">⬇ ${esc(a.name)}</button>`).join("")}</div>
           <label class="f">보고서 내용(자동 추출, ${r.chars.toLocaleString()}자)</label><div class="preview" style="max-height:640px">${esc(r.text || "(읽어 낸 글자가 없습니다)")}</div></div>
@@ -211,6 +238,7 @@ const Teacher = {
       Files.download(`/api/teacher/report/${rid}/file/${b.dataset.f}`);
     }));
     Teacher.drawFeedback(r.feedback, rid);
+    Teacher.drawManage(r, d.versions || [], rid);
     Teacher.drawEval(d.eval, rid);
     if (auto && !d.eval) $("#evrun")?.click();
   },
